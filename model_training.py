@@ -215,34 +215,36 @@ def apply_bollinger_bands_strategy(predictions: list, rate: int, model_name: str
     return labels_df
 
 def calculate_saved_money(df: pd.DataFrame):
-    
+
     percentage_list = []
     index_list = [0]
     
     [index_list.append(idx) for idx in df.index if df.loc[idx, 'buy_signal'] or df.loc[idx, 'sell_signal']];
     index_list.append(df.shape[0]-1)
 
-    for idx in df.index:
-        if df[df['buy_signal'] == True].shape[0] != 0 or df[df['sell_signal'] == True].shape[0] != 0:
-            if df.loc[idx, 'buy_signal'] == 1 or df.loc[idx, 'sell_signal'] == 1: 
-                for j in range(len(index_list)):
-                    if j == len(index_list) - 1: break
-                    if j == len(index_list) - 3:
-                        start = index_list[j+1]
-                        end = index_list[-1]
-                    else:
-                        start = index_list[j]
-                        end = index_list[j+1]
-                        if j == len(index_list) - 2: break
-                    difference = df.loc[end, 'Price'] - df.loc[start, 'Price']
-                    percent = np.round((difference/df.loc[start, 'Price']) * 100, 2)
-                    percentage_list.append(percent)
-                break
-        else:
-            difference = df.loc[df.shape[0]-1, 'Price'] - df.loc[0, 'Price']
-            percent = np.round((difference/df.loc[0, 'Price']) * 100, 2)
+    # If a buy signal or sell signal exists
+    if df[df['buy_signal'] == True].shape[0] != 0 or df[df['sell_signal'] == True].shape[0] != 0:
+      
+        for j in range(len(index_list)):
+            if j == len(index_list) - 1: break
+            if j == len(index_list) - 3:
+                start = index_list[j+1]
+                end = index_list[-1]
+            else:
+                start = index_list[j]
+                end = index_list[j+1]
+                if j == len(index_list) - 2: break
+                
+            difference = df.loc[end, 'Price'] - df.loc[start, 'Price'] # last value - first value
+            percent = np.round((difference/df.loc[start, 'Price']) * 100, 2)
             percentage_list.append(percent)
-            break
+        
+    # If only hold signal exists
+    else:
+        difference = df.loc[df.shape[0]-1, 'Price'] - df.loc[0, 'Price'] # last value - first value
+        percent = np.round((difference/df.loc[0, 'Price']) * 100, 2)
+        percentage_list.append(percent)
+        
     
     print(f'Following the model recommendations we are able to save the following percentages of money: {percentage_list}')
     
@@ -261,21 +263,16 @@ def model_training_report(df: pd.DataFrame):
     # Keep track of model results
     performance_report = {"Model": [], "Train score": [], "Test score": []}
     model_name_uni_LSTM, y_pred_uni_LSTM = univariate_LSTM(y_train, y_test, performance_report)
-    print('Performance report:')
-    print(performance_report)
-    # performance_report, y_pred_multi_LSTM = multivariate_LSTM(y_train, y_test, performance_report)
+    # model_name_multi_LSTM, y_pred_multi_LSTM = multivariate_LSTM(y_train, y_test, performance_report)
 
     predictions = {model_name_uni_LSTM: y_pred_uni_LSTM}
-    # print('Predictions')
-    # print(predictions)
+
     performance_report = pd.DataFrame(performance_report)
-    # print('Performance df')
-    # print(performance_report)
+
     min_score_model_name = performance_report['Model'][performance_report['Test score'].idxmin()]
     for key in predictions:
         if key == min_score_model_name:
             bb_predictions = predictions[key]
-    # bb_predictions = [predictions[key] for key in predictions if key == min_score]
 
     labels_df = apply_bollinger_bands_strategy(list(bb_predictions), 20, min_score_model_name) 
     labels_df[labels_df.notnull()] = 1
@@ -289,3 +286,5 @@ def model_training_report(df: pd.DataFrame):
     predictions_with_label_df.to_csv(os.path.join('final_predictions_with_recommendation', f'{min_score_model_name}_predictions_with_labels.csv'))
     
     saved_money = calculate_saved_money(predictions_with_label_df)
+
+    display(performance_report)
